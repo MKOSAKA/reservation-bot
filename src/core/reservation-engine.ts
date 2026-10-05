@@ -35,7 +35,7 @@ export const RELEASE_POLL_BACKOFF = [1000, 2000, 3000, 5000, 10000];
 /** 送信前の一時的エラー（5xx・ネットワーク）の再試行間隔 */
 export const TRANSIENT_RETRY_BACKOFF = [1000, 2000];
 
-const STOP_CATEGORIES: ErrorCategory[] = ["CAPTCHA", "FORBIDDEN", "RATE_LIMITED", "SITE_CHANGED", "UNCERTAIN_SUBMISSION", "UNKNOWN"];
+const STOP_CATEGORIES: ErrorCategory[] = ["CAPTCHA", "AUTH_CHALLENGE", "FORBIDDEN", "RATE_LIMITED", "SITE_CHANGED", "UNCERTAIN_SUBMISSION", "UNKNOWN"];
 const TRANSIENT: ErrorCategory[] = ["SERVER_ERROR", "NETWORK"];
 
 export type RunOutcome =

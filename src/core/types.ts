@@ -88,6 +88,7 @@ export type ErrorCategory =
   | "SERVER_ERROR" // 5xx
   | "NETWORK"
   | "CAPTCHA" // 回避しない。停止して通知
+  | "AUTH_CHALLENGE" // 3-Dセキュア等の本人認証。自動で通過しない
   | "SITE_CHANGED" // selector破損・想定外のページ。「空きなし」と区別する
   | "UNCERTAIN_SUBMISSION" // 送信後に結果を確認できない。二重予約防止のため停止
   | "MODE_STOP" // dry-run/assist で意図的に止めた
