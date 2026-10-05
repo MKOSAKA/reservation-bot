@@ -31,6 +31,16 @@
 4. 初回起動で UserData → `bootstrap.sh` が実行される（10分程度）。Slack に「🟢 起動しました」が届けば完了
    - ログ: `/var/log/reservation-bot-userdata.log`、`journalctl -u reservation-bot`
 
+## 通知（Slack）
+
+- 送信先: Slack ワークスペース interes Corp. の非公開チャンネル `#予約ボット`
+- 送信元: Slack アプリ `interes ops`（社内システムの通知用にまとめたアプリ。Incoming Webhook で投稿）
+- Webhook URL は Secrets Manager `reservation-bot/app` の `SLACK_WEBHOOK_URL`。デーモンの起動時（ExecStartPre）に展開される
+- URL の登録・差し替え: CloudShell で値を表示せずに既存の JSON へ追記する（入力値はログ・画面に残さない）。
+  反映は `systemctl restart reservation-bot`（起動通知「🟢 起動しました」が `#予約ボット` に届けば OK）
+- URL が漏れた場合は Slack アプリ設定の Incoming Webhooks で該当 URL を削除し、新しい URL を発行して差し替える
+- チャンネル名はできるだけ日本語で分かりやすく付ける（2026-10-05 方針）
+
 ## リクエスト登録（通常: GitHub Actions 経由）
 
 `config/requests/<id>.yaml` を PR で main に入れると、`.github/workflows/register-requests.yml` が
