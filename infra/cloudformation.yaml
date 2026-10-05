@@ -210,9 +210,10 @@ Resources:
           snap install aws-cli --classic
           export AWS_REGION=${AWS::Region}
           TOKEN=$(/snap/bin/aws secretsmanager get-secret-value --secret-id reservation-bot/deploy-github-token --query SecretString --output text)
-          AUTH=$(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)
-          git -c http.extraHeader="Authorization: Basic $AUTH" clone ${RepoUrl} /opt/reservation-bot
-          unset TOKEN AUTH
+          # Basic認証ヘッダ方式は GitHub に拒否されたため、URL埋め込みで取得し、直後に remote を素のURLへ戻す
+          GIT_TERMINAL_PROMPT=0 git clone "https://x-access-token:$TOKEN@github.com/MKOSAKA/reservation-bot.git" /opt/reservation-bot
+          git -C /opt/reservation-bot remote set-url origin ${RepoUrl}
+          unset TOKEN
           bash /opt/reservation-bot/infra/scripts/bootstrap.sh
 
   GitHubOidcProvider:

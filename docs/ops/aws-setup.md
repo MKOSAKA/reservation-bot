@@ -40,8 +40,8 @@ OIDC で AWS ロール `reservation-bot-github-actions` を引き受け、サー
 
 | 変数 | 値 |
 |---|---|
-| `RB_INSTANCE_ID` | スタック出力 `InstanceId` |
-| `RB_AWS_ROLE_ARN` | スタック出力 `GitHubActionsRoleArn` |
+| `RB_INSTANCE_ID` | スタック出力 `InstanceId`（未設定時はワークフロー内の既定値 i-03e553540d111fd31） |
+| `RB_AWS_ROLE_ARN` | スタック出力 `GitHubActionsRoleArn`（未設定時は既定値） |
 
 アカウントに GitHub の OIDC プロバイダが既にあるか確認し、あればスタック作成時に `CreateGitHubOidcProvider=false` を渡す:
 `aws iam list-open-id-connect-providers`
