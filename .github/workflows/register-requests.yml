@@ -22,7 +22,8 @@ jobs:
     timeout-minutes: 20
     env:
       AWS_REGION: ap-northeast-1
-      INSTANCE_ID: ${{ vars.RB_INSTANCE_ID }}
+      # 識別子であり秘密情報ではない。リポジトリ変数があればそちらを優先する
+      INSTANCE_ID: ${{ vars.RB_INSTANCE_ID || 'i-03e553540d111fd31' }}
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 2 }
@@ -54,7 +55,7 @@ jobs:
       - uses: aws-actions/configure-aws-credentials@v4
         if: steps.files.outputs.files != ''
         with:
-          role-to-assume: ${{ vars.RB_AWS_ROLE_ARN }}
+          role-to-assume: ${{ vars.RB_AWS_ROLE_ARN || 'arn:aws:iam::836778212106:role/reservation-bot-github-actions' }}
           aws-region: ap-northeast-1
       - name: start instance and wait for SSM
         if: steps.files.outputs.files != ''
