@@ -38,6 +38,11 @@ export interface ReservationRequest {
     timePriority: string[];
     /** true: 時刻を優先して空間を回す / false: 空間を優先して時刻を回す */
     timeFirst: boolean;
+    /** 利用人数（スタジオル等で必要。未指定なら施設の既定値） */
+    people?: number;
+    /** 開始の下限・終了の上限（"HH:mm"）。候補の調整後もこの範囲に収まるものだけを試す */
+    earliestStart?: string;
+    latestEnd?: string;
   };
   maxPrice: number | null;
   release: ReleaseRule;
@@ -158,6 +163,9 @@ export interface ProviderAdapter {
 
   /** 価格の算出（料金表）。不明なら null */
   estimatePrice(req: ReservationRequest, candidate: Candidate): number | null;
+
+  /** 施設固有の候補調整（例: 30分開始の部屋は :00 開始を :30 へずらす）。未実装なら候補をそのまま使う */
+  adjustCandidates?(req: ReservationRequest, candidates: Candidate[]): Candidate[];
 
   /** 候補を構成する枠。duration を満たす連続枠を返す。満たせなければ null */
   slotsForCandidate(snapshot: AvailabilitySnapshot, candidate: Candidate): Slot[] | null;

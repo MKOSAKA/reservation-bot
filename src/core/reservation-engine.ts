@@ -8,7 +8,7 @@
  */
 import { randomUUID } from "node:crypto";
 import type { Logger } from "pino";
-import { expandCandidates } from "./candidates.js";
+import { applyWindow, expandCandidates } from "./candidates.js";
 import type { Notifier } from "./notification.js";
 import {
   ProviderError,
@@ -52,6 +52,21 @@ function toProviderError(e: unknown): ProviderError {
   const msg = (e as Error)?.message ?? String(e);
   if (/net::|ECONN|ETIMEDOUT|ENOTFOUND|Timeout/i.test(msg)) return new ProviderError("NETWORK", msg);
   return new ProviderError("UNKNOWN", msg);
+}
+
+/** 候補の展開 → 施設固有の調整 → 時間帯の絞り込み */
+export function candidatesFor(req: ReservationRequest, provider: ProviderAdapter): Candidate[] {
+  const base = expandCandidates(req);
+  const adjusted = provider.adjustCandidates ? provider.adjustCandidates(req, base) : base;
+  // 調整で同じ枠が重複した場合は先に出た方を残す
+  const seen = new Set<string>();
+  const unique = adjusted.filter((c) => {
+    const k = `${c.spaceKey}|${c.start.toMillis()}|${c.end.toMillis()}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+  return applyWindow(req, unique);
 }
 
 export class ReservationEngine {
@@ -106,7 +121,7 @@ export class ReservationEngine {
     const snapshot = snapOrErr;
 
     // 2) 候補を順に試行
-    const candidates = expandCandidates(req);
+    const candidates = candidatesFor(req, provider);
     const reasons: string[] = [];
     let reauthed = false;
     for (let i = 0; i < candidates.length; i++) {
@@ -198,7 +213,7 @@ export class ReservationEngine {
 
   private async fetchReleasedSnapshot(req: ReservationRequest, runToken: string): Promise<AvailabilitySnapshot | ProviderError> {
     const { provider, store } = this.d;
-    const candidates = expandCandidates(req);
+    const candidates = candidatesFor(req, provider);
     let transient = 0;
     for (let poll = 0; ; ) {
       let snap: AvailabilitySnapshot;

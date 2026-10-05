@@ -23,3 +23,17 @@ export function expandCandidates(req: ReservationRequest): Candidate[] {
     };
   });
 }
+
+/** 開始の下限・終了の上限で候補を絞る（rank は振り直す） */
+export function applyWindow(req: ReservationRequest, candidates: Candidate[]): Candidate[] {
+  const { earliestStart, latestEnd } = req.preferences;
+  const kept = candidates.filter((c) => {
+    if (earliestStart && c.start.toFormat("HH:mm") < earliestStart) return false;
+    if (latestEnd) {
+      const endHm = c.end.hasSame(c.start, "day") ? c.end.toFormat("HH:mm") : "24:00";
+      if (endHm > latestEnd) return false;
+    }
+    return true;
+  });
+  return kept.map((c, i) => ({ ...c, rank: i + 1 }));
+}

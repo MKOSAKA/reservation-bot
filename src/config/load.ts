@@ -25,6 +25,9 @@ export const requestSchema = z
     room_priority: z.array(z.string()).optional(),
     time_priority: z.array(hm).min(1),
     time_first: z.boolean().default(true),
+    people: z.number().int().min(1).max(99).optional(),
+    earliest_start: hm.optional(),
+    latest_end: z.string().regex(/^\d{2}:\d{2}$/).optional(),
     max_price: z.number().int().positive().nullable().default(null),
     release: releaseSchema.optional(),
     mode: z.enum(["dry-run", "assist", "auto"]).default("dry-run"),
@@ -44,7 +47,14 @@ export function toRequest(y: RequestYaml): Omit<ReservationRequest, "release"> &
     facility: y.facility,
     targetDate: y.date,
     durationMinutes: y.duration_minutes,
-    preferences: { spacePriority: space, timePriority: y.time_priority, timeFirst: y.time_first },
+    preferences: {
+      spacePriority: space,
+      timePriority: y.time_priority,
+      timeFirst: y.time_first,
+      ...(y.people !== undefined ? { people: y.people } : {}),
+      ...(y.earliest_start ? { earliestStart: y.earliest_start } : {}),
+      ...(y.latest_end ? { latestEnd: y.latest_end } : {}),
+    },
     maxPrice: y.max_price,
     release: !r
       ? null
