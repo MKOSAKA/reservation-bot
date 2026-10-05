@@ -171,7 +171,8 @@ export class StudiolAdapter implements ProviderAdapter {
       const events = all
         .filter((e) => e.start.format("YYYY-MM-DD") === d)
         .map((e) => ({
-          start: e.start.format("YYYY-MM-DDTHH:mm:ss"),
+          // FullCalendar 拡張の moment では書式の "T" が午前/午後の記号に化ける（2026-10-05 実測 "2027-01-30A15:00:00"）ため、分けて組み立てる
+          start: `${e.start.format("YYYY-MM-DD")}T${e.start.format("HH:mm:ss")}`,
           resourceId: String(e.resourceId),
           classes: ([] as string[]).concat(e.className ?? []),
           rendering: e.rendering ?? null,

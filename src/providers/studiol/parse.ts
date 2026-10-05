@@ -46,6 +46,9 @@ export function parseDaySlots(facility: StudiolFacility, rooms: string[], events
   const day = DateTime.fromISO(date, { zone: TZ }).startOf("day");
   const dayEvents = events.filter((e) => e.start.startsWith(date));
   const anyForDay = dayEvents.length > 0;
+  // 時刻が読めないイベントを黙って「予約済」扱いにしない（書式の変化はサイト変更として止める）
+  const bad = dayEvents.find((e) => !DateTime.fromISO(e.start, { zone: TZ }).isValid);
+  if (bad) throw new ProviderError("SITE_CHANGED", `unparseable event start "${bad.start.slice(0, 32)}"`);
   const slots: Slot[] = [];
   for (const key of rooms) {
     const room = facility.rooms[key];

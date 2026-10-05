@@ -32,6 +32,11 @@ describe("studiol calendar", () => {
     expect(slots.every((s) => s.state === "not_released")).toBe(true);
   });
 
+  it("refuses to guess when event times cannot be parsed (observed FullCalendar format quirk)", () => {
+    const events = [{ ...ev("2027-01-30", "15:00", "2854"), start: "2027-01-30A15:00:00" }];
+    expect(() => parseDaySlots(f, ["1st"], events, "2027-01-30")).toThrow(ProviderError);
+  });
+
   it("detects a changed room layout", () => {
     expect(() => checkResources(f, [{ id: "2854", title: "1st" }])).toThrow(ProviderError);
     const all = Object.values(f.rooms).map((r) => ({ id: r.resourceId, title: r.label }));
