@@ -142,3 +142,18 @@ describe("studiol diagnostics", () => {
     expect(out).toContain("空き開始: 13:00 13:30");
   });
 });
+
+describe("studiol confirmation comparison", () => {
+  it("accepts notation differences but not value differences", async () => {
+    const { sameMinute } = await import("../src/providers/studiol/adapter.js");
+    const t = at("2027-01-30T15:00");
+    expect(sameMinute("2027/01/30 15:00", t)).toBe(true);
+    expect(sameMinute("2027-01-30 15:00:00", t)).toBe(true);
+    expect(sameMinute("2027-01-30T15:00", t)).toBe(true);
+    expect(sameMinute("2027/1/30 15:00", t)).toBe(true);
+    expect(sameMinute("2027/01/30 15:30", t)).toBe(false);
+    expect(sameMinute("2027/01/31 15:00", t)).toBe(false);
+    expect(sameMinute("2027-01-30 15:00:30", t)).toBe(false);
+    expect(sameMinute("", t)).toBe(false);
+  });
+});
