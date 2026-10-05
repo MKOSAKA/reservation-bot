@@ -109,3 +109,16 @@ describe("studiol login failure detail", () => {
     expect(s.match(/パスワードが違います/g)).toHaveLength(1);
   });
 });
+
+describe("studiol schedule request matching", () => {
+  it("matches only the request for the target date", async () => {
+    const { isScheduleRequestFor } = await import("../src/providers/studiol/adapter.js");
+    const body = (d: string, e: string) => `_token=abc&shop_id=671&start=${encodeURIComponent(`${d} 00:00:00`)}&end=${encodeURIComponent(`${e} 07:00:00`)}`;
+    expect(isScheduleRequestFor(body("2027-01-30", "2027-01-31"), "2027-01-30")).toBe(true);
+    expect(isScheduleRequestFor(body("2027-01-30", "2027-01-31").replace(/%20/g, "+"), "2027-01-30")).toBe(true);
+    // 店舗ページを開いた直後の「今日」の取得には反応しない（終了日に対象日が入っていても）
+    expect(isScheduleRequestFor(body("2027-01-29", "2027-01-30"), "2027-01-30")).toBe(false);
+    expect(isScheduleRequestFor(JSON.stringify({ start: "2027-01-30 00:00:00" }), "2027-01-30")).toBe(true);
+    expect(isScheduleRequestFor(null, "2027-01-30")).toBe(false);
+  });
+});

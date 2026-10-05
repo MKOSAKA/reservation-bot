@@ -63,6 +63,21 @@ export function describeLoginFailure(
     .join(" ");
 }
 
+/**
+ * get_schedule_shop の POST 本文が対象日の取得か（2026-10-05 観測: start=2027-01-16 00:00:00&end=2027-01-17 07:00:00）。
+ * 本文がフォーム形式・URL エンコード・JSON のいずれでも判定できるようにデコードしてから見る
+ */
+export function isScheduleRequestFor(postData: string | null, date: string): boolean {
+  if (!postData) return false;
+  let body = postData;
+  try {
+    body = decodeURIComponent(postData.replace(/\+/g, " "));
+  } catch {
+    /* デコードできなければそのまま */
+  }
+  return new RegExp(`"?start"?\\s*[=:]\\s*"?${date}`).test(body);
+}
+
 function facilityOf(key: string): StudiolFacility {
   const f = STUDIOL_FACILITIES[key];
   if (!f) throw new ProviderError("SITE_CHANGED", `unknown studiol facility "${key}"`);
@@ -118,8 +133,12 @@ export class StudiolAdapter implements ProviderAdapter {
 
   /** カレンダーを対象日へ移動し、その日のイベントと部屋構成を読む */
   private async readDay(page: Page, date: string): Promise<{ events: RawEvent[]; resources: RawResource[] }> {
+    // 店舗ページを開いた直後は「今日」の分の取得が走っているため、対象日の取得（POST 本文の start=対象日）だけを待つ。
+    // 2026-10-05 AWS 実機: URL だけで待つと今日の分の応答で先に進み、対象日のイベント0件＝未解禁と誤判定した
     const [res] = await Promise.all([
-      page.waitForResponse((r) => r.url().includes("/get_schedule_shop"), { timeout: 15_000 }).catch(() => null),
+      page
+        .waitForResponse((r) => r.url().includes("/get_schedule_shop") && isScheduleRequestFor(r.request().postData(), date), { timeout: 15_000 })
+        .catch(() => null),
       page.evaluate((d) => {
         const $ = (window as unknown as { jQuery: (s: string) => { fullCalendar: (...a: unknown[]) => unknown } }).jQuery;
         $(".schedule-calendar0").fullCalendar("gotoDate", d);
@@ -129,7 +148,18 @@ export class StudiolAdapter implements ProviderAdapter {
       const err = categorizeResponse(res.status(), "");
       if (err) throw err;
     }
-    await page.waitForTimeout(500); // 描画反映待ち
+    // 応答の反映（イベント登録）を待つ。予約可能期間外の日は0件のままなので、短い上限で打ち切る
+    await page
+      .waitForFunction(
+        (d) => {
+          const $ = (window as unknown as { jQuery: (s: string) => { fullCalendar: (...a: unknown[]) => unknown } }).jQuery;
+          const evs = $(".schedule-calendar0").fullCalendar("clientEvents") as { start: { format: (f: string) => string } }[];
+          return evs.some((e) => e.start.format("YYYY-MM-DD") === d);
+        },
+        date,
+        { timeout: res ? 3_000 : 10_000 },
+      )
+      .catch(() => null);
     return page.evaluate((d) => {
       type Ev = { start: { format: (f: string) => string }; resourceId: string; className?: string | string[]; rendering?: string };
       const $ = (window as unknown as { jQuery: (s: string) => { fullCalendar: (...a: unknown[]) => unknown } }).jQuery;

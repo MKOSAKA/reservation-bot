@@ -148,7 +148,7 @@ export class Scheduler {
       store.finishPhase(requestId, phase, "ok");
       plog.info("preflight ok");
       if (phase === "preflight_24h") {
-        await notifier.send("info", `🟢 事前チェックOK（T-24h）\n${req.targetDate} ${req.facility}\n解禁 ${due.toFormat("yyyy/MM/dd HH:mm")}`);
+        await notifier.send("info", `🟢 事前チェックOK（T-24h）\n${req.targetDate} ${req.facility}\n解禁 ${due.plus({ hours: 24 }).toFormat("yyyy/MM/dd HH:mm")}`);
       }
     } else {
       store.transition(requestId, ["preflight_ok"], "scheduled");
