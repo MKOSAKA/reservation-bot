@@ -50,8 +50,10 @@ WAKE_INSTANCE_ID=$INSTANCE_ID
 WAKE_ROLE_ARN=arn:aws:iam::$ACCOUNT:role/reservation-bot-wake
 WAKE_SCHEDULE_GROUP=reservation-bot
 AUTO_POWEROFF=1
-# 実予約テスト合格まで 0（確定ボタンを押さない）
+# 確定ボタンを押すか（1=押す）。LaBOLA はクラウドから予約導線が 403 のため 0
 LABOLA_ALLOW_SUBMIT=0
+# スタジオルは 2026-10-05 実予約試験に合格し、ユーザーが自動確定を了承
+STUDIOL_ALLOW_SUBMIT=1
 CONF
 chmod 0640 "$ETC/config.env"; chown root:rbot "$ETC/config.env"
 
