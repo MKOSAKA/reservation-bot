@@ -67,13 +67,18 @@ export class LabolaAdapter implements ProviderAdapter {
     return facilityOf(facility).release;
   }
 
-  private async goto(page: Page, url: string): Promise<Response | null> {
+  /**
+   * @param opts.loginRequired ログイン必須ページ。未ログイン時は 404 が返る（2026-10-05 実測）ため SESSION_EXPIRED とみなす
+   */
+  private async goto(page: Page, url: string, opts: { loginRequired?: boolean } = {}): Promise<Response | null> {
     let res: Response | null;
     try {
       res = await page.goto(url, { waitUntil: "domcontentloaded" });
     } catch (e) {
       throw new ProviderError("NETWORK", (e as Error).message);
     }
+    const status = res?.status() ?? null;
+    if (opts.loginRequired && (status === 401 || status === 404)) throw new ProviderError("SESSION_EXPIRED", `HTTP ${status}（未ログイン）`);
     const body = (await page.locator("body").innerText().catch(() => "")).slice(0, 5000);
     const err = categorizeResponse(res?.status() ?? null, body);
     if (err) throw err;
@@ -148,7 +153,10 @@ export class LabolaAdapter implements ProviderAdapter {
     if ((await id.count()) !== 1 || (await pw.count()) !== 1) throw new ProviderError("SITE_CHANGED", "login form fields not found");
     await id.fill(cred.memberId);
     await pw.fill(cred.password);
-    const [res] = await Promise.all([page.waitForNavigation({ waitUntil: "domcontentloaded" }).catch(() => null), page.locator('[name="submit_member"], button[type="submit"]').first().click()]);
+    // 送信ボタンは <input type="submit">（name なし）。同ページの「LaBOLAアカウントでログイン」とは別フォームなので、ID欄を含むフォームに限定する
+    const submit = page.locator('form:has(input[name="membership_code"]) [type="submit"]').first();
+    if ((await submit.count()) === 0) throw new ProviderError("SITE_CHANGED", "login submit button not found");
+    const [res] = await Promise.all([page.waitForNavigation({ waitUntil: "domcontentloaded" }).catch(() => null), submit.click()]);
     const body = (await page.locator("body").innerText()).slice(0, 5000);
     const err = categorizeResponse(res?.status() ?? null, body);
     if (err) throw err;
@@ -159,7 +167,12 @@ export class LabolaAdapter implements ProviderAdapter {
   async validateSession(): Promise<SessionCheck> {
     // 予約一覧はログイン時のみ表示され、ログアウト導線を持つ
     const page = await this.sessions.getPage();
-    await this.goto(page, `${BASE}/r/customer/member-bookings/`);
+    try {
+      await this.goto(page, `${BASE}/r/customer/member-bookings/`, { loginRequired: true });
+    } catch (e) {
+      if (e instanceof ProviderError && e.category === "SESSION_EXPIRED") return { valid: false, detail: e.message };
+      throw e;
+    }
     const loggedIn = (await page.locator('a[href^="/r/customer/logout/"]').count()) > 0;
     const loginForm = (await page.locator('input[name="membership_code"]').count()) > 0;
     if (loggedIn && !loginForm) return { valid: true, detail: "member-bookings reachable (logout link present)" };
@@ -305,7 +318,7 @@ export class LabolaAdapter implements ProviderAdapter {
   async findExistingReservation(req: ReservationRequest): Promise<ReservationResult | null> {
     const f = facilityOf(req.facility);
     const page = await this.sessions.getPage();
-    await this.goto(page, `${BASE}/r/customer/member-bookings/`);
+    await this.goto(page, `${BASE}/r/customer/member-bookings/`, { loginRequired: true });
     if ((await page.locator('input[name="membership_code"]').count()) > 0) throw new ProviderError("SESSION_EXPIRED", "member-bookings requires login");
     const rows = await page.evaluate(() =>
       Array.from(document.querySelectorAll('a[href*="/r/customer/member-booking/rental/"]')).map((a) => ({
