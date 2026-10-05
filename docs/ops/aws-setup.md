@@ -30,7 +30,22 @@
 4. 初回起動で UserData → `bootstrap.sh` が実行される（10分程度）。Slack に「🟢 起動しました」が届けば完了
    - ログ: `/var/log/reservation-bot-userdata.log`、`journalctl -u reservation-bot`
 
-## リクエスト登録
+## リクエスト登録（通常: GitHub Actions 経由）
+
+`config/requests/<id>.yaml` を PR で main に入れると、`.github/workflows/register-requests.yml` が
+OIDC で AWS ロール `reservation-bot-github-actions` を引き受け、サーバ起動 → `infra/scripts/register.sh` → Slack 通知まで行う。
+
+初回のみ GitHub のリポジトリ設定 → Secrets and variables → Actions → **Variables** に登録する（秘密情報ではない）:
+
+| 変数 | 値 |
+|---|---|
+| `RB_INSTANCE_ID` | スタック出力 `InstanceId` |
+| `RB_AWS_ROLE_ARN` | スタック出力 `GitHubActionsRoleArn` |
+
+アカウントに GitHub の OIDC プロバイダが既にあるか確認し、あればスタック作成時に `CreateGitHubOidcProvider=false` を渡す:
+`aws iam list-open-id-connect-providers`
+
+## リクエスト登録（手動・保守用）
 
 ```bash
 aws ssm start-session --target <instance-id>

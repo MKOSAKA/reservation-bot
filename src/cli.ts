@@ -11,8 +11,7 @@ import { closeSync, existsSync, openSync, readFileSync, unlinkSync, writeFileSyn
 import { join } from "node:path";
 import { DateTime } from "luxon";
 import { buildApp } from "./app.js";
-import { loadRequestFile } from "./config/load.js";
-import { policyFor } from "./core/release-policy.js";
+import { describeResolved, resolveRequestFile } from "./config/resolve.js";
 import { Scheduler, formatNextJobs, planPhases } from "./core/scheduler.js";
 import { TZ, type Mode, type ReservationRequest } from "./core/types.js";
 import { keepaliveExists, planWakeTimes, powerOff, registerWakeSchedules, shouldPowerOff, wakeConfigFromEnv } from "./infra/power.js";
@@ -48,32 +47,35 @@ function acquireLock(path: string): () => void {
 
 async function main() {
   const [cmd, target] = process.argv.slice(2);
+  if (cmd === "validate") {
+    // DB・秘密情報なしで検証する（CI / GitHub Actions 用）
+    const files = process.argv.slice(3);
+    if (files.length === 0) throw new Error("usage: validate <request.yaml...>");
+    for (const f of files) console.log(describeResolved(resolveRequestFile(f)));
+    return;
+  }
   const app = buildApp();
   const { store, providers, log } = app;
 
   switch (cmd) {
     case "add": {
       if (!target) throw new Error("usage: add <request.yaml>");
-      const r = loadRequestFile(target);
-      const provider = providers.get(r.provider);
-      if (!provider) throw new Error(`unknown provider ${r.provider}`);
-      const release = r.release ?? provider.defaultReleaseRule(r.facility);
-      if (!release) throw new Error("release rule is required");
-      const req: ReservationRequest = { ...r, release };
-      const releaseAt = policyFor(release).releaseAt(req.targetDate);
+      const { req, releaseAt, warnings } = resolveRequestFile(target);
       store.upsertRequest(req, releaseAt);
       const phases = planPhases(releaseAt);
       store.ensurePhases(req.id, phases);
+      const lines = [describeResolved({ req, releaseAt, warnings })];
       const wake = wakeConfigFromEnv(process.env);
       if (wake) {
         const wakes = planWakeTimes(req.id, phases, DateTime.now().setZone(TZ));
         await registerWakeSchedules(wake, wakes, log);
-        for (const w of wakes) console.log(`wake ${w.at.toFormat("yyyy-MM-dd HH:mm")}  ${w.name}`);
+        for (const w of wakes) lines.push(`  起動予定: ${w.at.toFormat("yyyy-MM-dd HH:mm")}`);
       } else {
-        console.log("(WAKE_INSTANCE_ID 未設定: 起動スケジュールは登録しない)");
+        lines.push("  (WAKE_INSTANCE_ID 未設定: 起動予定は登録しない)");
       }
-      console.log(`registered ${req.id}: release at ${releaseAt.toFormat("yyyy-MM-dd HH:mm:ss ZZZZ")} (mode=${req.mode})`);
+      console.log(lines.join("\n"));
       console.log(formatNextJobs(store));
+      await app.notifier.send("info", `📝 予約リクエストを登録しました\n${lines.join("\n")}`);
       break;
     }
     case "wake-at": {
@@ -147,7 +149,7 @@ async function main() {
       return; // 常駐
     }
     default:
-      console.log("commands: add | wake-at | next-jobs | status | run | preflight | daemon");
+      console.log("commands: validate | add | wake-at | next-jobs | status | run | preflight | daemon");
   }
   store.close();
 }
