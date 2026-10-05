@@ -1,0 +1,9 @@
+id: ok
+provider: labola
+facility: morinomiya
+date: 2099-12-13
+duration_minutes: 120
+court_priority: [covered, open]
+time_priority: ["13:30", "12:30"]
+max_price: 22000
+mode: auto

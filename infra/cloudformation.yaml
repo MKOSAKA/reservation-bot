@@ -19,6 +19,18 @@ Parameters:
   RepoUrl:
     Type: String
     Default: https://github.com/MKOSAKA/reservation-bot.git
+  GitHubRepo:
+    Type: String
+    Default: MKOSAKA/reservation-bot
+    Description: 登録用 GitHub Actions を許可するリポジトリ（owner/name）
+  CreateGitHubOidcProvider:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: アカウントに token.actions.githubusercontent.com の OIDC プロバイダが既にあれば false
+
+Conditions:
+  CreateOidc: !Equals [!Ref CreateGitHubOidcProvider, "true"]
 
 Resources:
   SecurityGroup:
@@ -148,7 +160,53 @@ Resources:
           unset TOKEN AUTH
           bash /opt/reservation-bot/infra/scripts/bootstrap.sh
 
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: CreateOidc
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList: [sts.amazonaws.com]
+
+  # main への push（予約リクエストのマージ）時だけ引き受けられる。できるのは起動と登録スクリプトの実行のみ
+  GitHubActionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: reservation-bot-github-actions
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+                token.actions.githubusercontent.com:sub: !Sub repo:${GitHubRepo}:ref:refs/heads/main
+      Policies:
+        - PolicyName: register-requests
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: StartAndWait
+                Effect: Allow
+                Action: ec2:StartInstances
+                Resource: !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${Instance}
+              - Sid: Describe
+                Effect: Allow
+                Action: [ec2:DescribeInstances, ssm:DescribeInstanceInformation, ssm:GetCommandInvocation, ssm:ListCommandInvocations]
+                Resource: "*"
+              - Sid: RunOnlyOnThisInstance
+                Effect: Allow
+                Action: ssm:SendCommand
+                Resource:
+                  - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${Instance}
+                  - !Sub arn:aws:ssm:${AWS::Region}::document/AWS-RunShellScript
+
 Outputs:
+  GitHubActionsRoleArn:
+    Value: !GetAtt GitHubActionsRole.Arn
   InstanceId:
     Value: !Ref Instance
   WakeRoleArn:

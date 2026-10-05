@@ -1,0 +1,81 @@
+name: register-requests
+# main に入った予約リクエスト（config/requests/*.yaml）をサーバへ登録する。
+# AWS へは OIDC で一時認証（長期の鍵は置かない）。サーバが停止中なら起動し、登録後はサーバ側で自動停止する。
+on:
+  push:
+    branches: [main]
+    paths: ["config/requests/**.yaml"]
+  workflow_dispatch:
+    inputs:
+      files:
+        description: "登録するファイル（空白区切り。例: config/requests/2026-12-13-morinomiya.yaml）"
+        required: true
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: register-requests
+  cancel-in-progress: false
+jobs:
+  register:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      AWS_REGION: ap-northeast-1
+      INSTANCE_ID: ${{ vars.RB_INSTANCE_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 2 }
+      - name: target files
+        id: files
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_FILES: ${{ inputs.files }}
+        run: |
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            FILES="$INPUT_FILES"
+          else
+            FILES=$(git diff --name-only --diff-filter=AM HEAD^ HEAD -- 'config/requests/*.yaml' | tr '\n' ' ')
+          fi
+          # ファイル名はシェル・SSM へ渡すため、許可する形を厳格に限定する
+          for f in $FILES; do
+            [[ "$f" =~ ^config/requests/[a-z0-9-]+\.yaml$ ]] || { echo "不正なファイル名: $f" >&2; exit 1; }
+            [ -f "$f" ] || { echo "存在しない: $f" >&2; exit 1; }
+          done
+          echo "files=$(echo $FILES)" >> "$GITHUB_OUTPUT"
+          echo "対象: ${FILES:-なし}"
+      - uses: actions/setup-node@v4
+        if: steps.files.outputs.files != ''
+        with: { node-version: 22, cache: npm }
+      - name: validate
+        if: steps.files.outputs.files != ''
+        run: npm ci && npx tsx src/cli.ts validate $FILES
+        env: { PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1", FILES: "${{ steps.files.outputs.files }}" }
+      - uses: aws-actions/configure-aws-credentials@v4
+        if: steps.files.outputs.files != ''
+        with:
+          role-to-assume: ${{ vars.RB_AWS_ROLE_ARN }}
+          aws-region: ap-northeast-1
+      - name: start instance and wait for SSM
+        if: steps.files.outputs.files != ''
+        run: |
+          aws ec2 start-instances --instance-ids "$INSTANCE_ID" >/dev/null
+          aws ec2 wait instance-running --instance-ids "$INSTANCE_ID"
+          for i in $(seq 1 40); do
+            s=$(aws ssm describe-instance-information --filters "Key=InstanceIds,Values=$INSTANCE_ID" --query 'InstanceInformationList[0].PingStatus' --output text)
+            [ "$s" = "Online" ] && exit 0
+            sleep 10
+          done
+          echo "SSM agent not online" >&2; exit 1
+      - name: register on server
+        if: steps.files.outputs.files != ''
+        env: { FILES: "${{ steps.files.outputs.files }}" }
+        run: |
+          CMD_ID=$(aws ssm send-command --instance-ids "$INSTANCE_ID" --document-name AWS-RunShellScript \
+            --comment "register ${GITHUB_SHA::7}" \
+            --parameters "commands=[\"bash /opt/reservation-bot/infra/scripts/register.sh $FILES\"]" \
+            --query Command.CommandId --output text)
+          aws ssm wait command-executed --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" || true
+          aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
+            --query '{status:Status,out:StandardOutputContent,err:StandardErrorContent}' --output json | tee result.json
+          test "$(jq -r .status result.json)" = "Success"

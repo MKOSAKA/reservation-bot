@@ -1,0 +1,7 @@
+id: bad-space
+provider: labola
+facility: morinomiya
+date: 2099-12-13
+duration_minutes: 120
+court_priority: [roofed]
+time_priority: ["13:30"]

@@ -1,0 +1,23 @@
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+        env: { PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1" }
+      - run: npm run typecheck
+      - run: npm test
+      - name: validate requests
+        run: |
+          shopt -s nullglob
+          files=(config/requests/*.yaml)
+          if [ ${#files[@]} -gt 0 ]; then npx tsx src/cli.ts validate "${files[@]}"; fi
