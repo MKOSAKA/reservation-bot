@@ -1,0 +1,155 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  reservation-bot 実行基盤。t4g.small を通常は停止し、EventBridge Scheduler で必要時のみ起動する。
+  SSH は開けず SSM Session Manager のみ。秘密情報は Secrets Manager（reservation-bot/*）。
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: パブリックサブネット（外向き通信に公開IPv4を自動割当する。EIPは使わない＝停止中は課金されない）
+  InstanceType:
+    Type: String
+    Default: t4g.small
+    AllowedValues: [t4g.small, t4g.micro]
+  AmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/canonical/ubuntu/server/24.04/stable/current/arm64/hvm/ebs-gp3/ami-id
+  RepoUrl:
+    Type: String
+    Default: https://github.com/MKOSAKA/reservation-bot.git
+
+Resources:
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: reservation-bot (no inbound)
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: "-1"
+          CidrIp: 0.0.0.0/0
+      Tags: [{ Key: Project, Value: reservation-bot }]
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: reservation-bot-instance
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: reservation-bot-runtime
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ReadOwnSecrets
+                Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:reservation-bot/*
+              - Sid: ManageWakeSchedules
+                Effect: Allow
+                Action: [scheduler:CreateSchedule, scheduler:GetSchedule, scheduler:DeleteSchedule]
+                Resource: !Sub arn:aws:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/reservation-bot/*
+              - Sid: PassWakeRole
+                Effect: Allow
+                Action: iam:PassRole
+                Resource: !Sub arn:aws:iam::${AWS::AccountId}:role/reservation-bot-wake
+                Condition:
+                  StringEquals: { iam:PassedToService: scheduler.amazonaws.com }
+              - Sid: StopSelfOnly
+                Effect: Allow
+                Action: ec2:StopInstances
+                Resource: !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*
+                Condition:
+                  StringEquals: { aws:ResourceTag/Project: reservation-bot }
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref InstanceRole]
+
+  WakeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: reservation-bot-wake
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: scheduler.amazonaws.com }
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals: { aws:SourceAccount: !Ref AWS::AccountId }
+
+  WakePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: start-reservation-bot
+      Roles: [!Ref WakeRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: ec2:StartInstances
+            Resource: !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${Instance}
+
+  ScheduleGroup:
+    Type: AWS::Scheduler::ScheduleGroup
+    Properties:
+      Name: reservation-bot
+
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        MetadataOptions:
+          HttpTokens: required
+          HttpPutResponseHopLimit: 1
+        InstanceInitiatedShutdownBehavior: stop
+        BlockDeviceMappings:
+          - DeviceName: /dev/sda1
+            Ebs: { VolumeSize: 16, VolumeType: gp3, Encrypted: true, DeleteOnTermination: true }
+
+  Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref InstanceProfile
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplate
+        Version: !GetAtt LaunchTemplate.LatestVersionNumber
+      NetworkInterfaces:
+        - DeviceIndex: "0"
+          SubnetId: !Ref SubnetId
+          AssociatePublicIpAddress: true
+          GroupSet: [!Ref SecurityGroup]
+      Tags:
+        - { Key: Name, Value: reservation-bot }
+        - { Key: Project, Value: reservation-bot }
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          # 初回起動時のみ: リポジトリを取得して bootstrap.sh を実行する
+          set -euo pipefail
+          exec > /var/log/reservation-bot-userdata.log 2>&1
+          apt-get update -y && apt-get install -y git jq python3
+          snap install aws-cli --classic
+          export AWS_REGION=${AWS::Region}
+          TOKEN=$(/snap/bin/aws secretsmanager get-secret-value --secret-id reservation-bot/deploy-github-token --query SecretString --output text)
+          AUTH=$(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)
+          git -c http.extraHeader="Authorization: Basic $AUTH" clone ${RepoUrl} /opt/reservation-bot
+          unset TOKEN AUTH
+          bash /opt/reservation-bot/infra/scripts/bootstrap.sh
+
+Outputs:
+  InstanceId:
+    Value: !Ref Instance
+  WakeRoleArn:
+    Value: !GetAtt WakeRole.Arn

@@ -72,6 +72,10 @@ export class Scheduler {
     void this.tick();
   }
 
+  isBusy(): boolean {
+    return this.busy.size > 0;
+  }
+
   stop(): void {
     if (this.timer) clearInterval(this.timer);
   }
@@ -111,17 +115,19 @@ export class Scheduler {
         await notifier.send("manual_intervention", `⚠️ 解禁時刻を過ぎて起動したため自動実行しませんでした\n${req.targetDate} ${req.facility}`);
         return;
       }
-      await sleepUntil(due);
-      plog.info({ at: DateTime.now().setZone(TZ).toISO() }, "release fired");
-      const outcome = await this.d.engineFor(provider).run(requestId);
+      // ロック取得と既存予約の照合は T0 前に済ませ、T0 ちょうどに空き取得から始める
+      const outcome = await this.d.engineFor(provider).run(requestId, undefined, async () => {
+        await sleepUntil(due);
+        plog.info({ at: DateTime.now().setZone(TZ).toISO() }, "release fired");
+      });
       store.finishPhase(requestId, phase, outcome.kind);
       return;
     }
 
     const problems: string[] = [];
     let session = await provider.validateSession().catch((e) => ({ valid: false, detail: (e as Error).message }));
-    if (!session.valid && phase === "preflight_10m") {
-      // 本番直前は1回だけ再ログインを試みる。ループさせない（CSRF 403 の再発防止）
+    if (!session.valid) {
+      // 1回だけ再ログインを試みる（T-24h ではログイン情報が有効かの確認を兼ねる）。ループさせない（CSRF 403 の再発防止）
       await provider.authenticate().catch((e) => problems.push(`再ログイン失敗: ${(e as Error).message}`));
       session = await provider.validateSession().catch((e) => ({ valid: false, detail: (e as Error).message }));
     }

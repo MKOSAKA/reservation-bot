@@ -261,3 +261,15 @@ describe("phase claiming", () => {
     expect(store.claimPhase("req-1", "release")).toBe(false);
   });
 });
+
+describe("release timing", () => {
+  it("checks existing reservations before waiting for T0, then fetches availability", async () => {
+    const order: string[] = [];
+    const origFind = provider.findExistingReservation.bind(provider);
+    provider.findExistingReservation = async () => (order.push("existing"), origFind());
+    const origAvail = provider.getAvailability.bind(provider);
+    provider.getAvailability = async () => (order.push("availability"), origAvail());
+    await engine.run("req-1", undefined, async () => void order.push("wait-T0"));
+    expect(order.slice(0, 3)).toEqual(["existing", "wait-T0", "availability"]);
+  });
+});

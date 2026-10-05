@@ -60,7 +60,10 @@ export class ReservationEngine {
     this.sleep = d.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
   }
 
-  async run(requestId: string, modeOverride?: Mode): Promise<RunOutcome> {
+  /**
+   * @param beforeFetch 事前処理（ロック・既存予約の照合）の後、空き取得の直前に待つ処理。スケジューラが T0 まで待つのに使う
+   */
+  async run(requestId: string, modeOverride?: Mode, beforeFetch?: () => Promise<void>): Promise<RunOutcome> {
     const { store, provider, notifier, log } = this.d;
     const stored = store.getRequest(requestId);
     if (!stored) throw new Error(`request ${requestId} not found`);
@@ -91,6 +94,8 @@ export class ReservationEngine {
         return { kind: "already_done" };
       }
     }
+
+    if (beforeFetch) await beforeFetch();
 
     // 1) 解禁を待ちつつ空きを取得
     const snapOrErr = await this.fetchReleasedSnapshot(req, runToken);

@@ -15,6 +15,7 @@ import { loadRequestFile } from "./config/load.js";
 import { policyFor } from "./core/release-policy.js";
 import { Scheduler, formatNextJobs, planPhases } from "./core/scheduler.js";
 import { TZ, type Mode, type ReservationRequest } from "./core/types.js";
+import { keepaliveExists, planWakeTimes, powerOff, registerWakeSchedules, shouldPowerOff, wakeConfigFromEnv } from "./infra/power.js";
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(name);
@@ -61,9 +62,29 @@ async function main() {
       const req: ReservationRequest = { ...r, release };
       const releaseAt = policyFor(release).releaseAt(req.targetDate);
       store.upsertRequest(req, releaseAt);
-      store.ensurePhases(req.id, planPhases(releaseAt));
+      const phases = planPhases(releaseAt);
+      store.ensurePhases(req.id, phases);
+      const wake = wakeConfigFromEnv(process.env);
+      if (wake) {
+        const wakes = planWakeTimes(req.id, phases, DateTime.now().setZone(TZ));
+        await registerWakeSchedules(wake, wakes, log);
+        for (const w of wakes) console.log(`wake ${w.at.toFormat("yyyy-MM-dd HH:mm")}  ${w.name}`);
+      } else {
+        console.log("(WAKE_INSTANCE_ID 未設定: 起動スケジュールは登録しない)");
+      }
       console.log(`registered ${req.id}: release at ${releaseAt.toFormat("yyyy-MM-dd HH:mm:ss ZZZZ")} (mode=${req.mode})`);
       console.log(formatNextJobs(store));
+      break;
+    }
+    case "wake-at": {
+      // 観測・手作業のための臨時起動: wake-at 2026-10-11T23:30 <name>
+      const wake = wakeConfigFromEnv(process.env);
+      if (!wake || !target) throw new Error("usage: wake-at <yyyy-MM-ddTHH:mm> [name]  (WAKE_INSTANCE_ID 必須)");
+      const at = DateTime.fromISO(target, { zone: TZ });
+      if (!at.isValid) throw new Error("invalid datetime");
+      const name = process.argv[4] ?? `rb-manual-${at.toFormat("yyyyMMdd-HHmm")}`;
+      await registerWakeSchedules(wake, [{ name, at }], log);
+      console.log(`wake ${at.toFormat("yyyy-MM-dd HH:mm")} ${name}`);
       break;
     }
     case "next-jobs":
@@ -107,10 +128,26 @@ async function main() {
       process.on("SIGINT", shutdown);
       scheduler.start();
       log.info(formatNextJobs(store));
+      const bootedAt = DateTime.now().setZone(TZ);
+      const next = store.nextDue();
+      await app.notifier.send("info", `🟢 起動しました ${bootedAt.toFormat("MM/dd HH:mm")}\n次の予定: ${next ? next.toFormat("MM/dd HH:mm") : "なし"}`);
+      const wakeCfg = wakeConfigFromEnv(process.env);
+      if (process.env.AUTO_POWEROFF === "1" && wakeCfg) {
+        let stopping = false;
+        setInterval(() => {
+          const now = DateTime.now().setZone(TZ);
+          if (!stopping && shouldPowerOff({ now, bootedAt, nextDue: store.nextDue(), running: scheduler.isBusy(), keepalive: keepaliveExists(app.dataDir) })) {
+            void app.notifier.send("info", `⚪ 予定がないため停止します（次: ${store.nextDue()?.toFormat("MM/dd HH:mm") ?? "なし"}）`).then(() => {
+              stopping = true;
+              return powerOff(wakeCfg, log);
+            }).catch((e) => log.error({ err: (e as Error).message }, "power off failed"));
+          }
+        }, 60_000);
+      }
       return; // 常駐
     }
     default:
-      console.log("commands: add | next-jobs | status | run | preflight | daemon");
+      console.log("commands: add | wake-at | next-jobs | status | run | preflight | daemon");
   }
   store.close();
 }
