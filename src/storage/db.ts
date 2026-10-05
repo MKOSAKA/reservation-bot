@@ -201,6 +201,17 @@ export class Store {
       .all() as never;
   }
 
+  /** 未発火フェーズのうち最も早い期日 */
+  nextDue(): DateTime | null {
+    const r = this.db
+      .prepare(
+        `SELECT MIN(p.due_at) AS due FROM job_phases p JOIN reservation_requests r ON r.id = p.request_id
+         WHERE p.fired_at IS NULL AND r.status IN ('scheduled','preflight_ok')`,
+      )
+      .get() as { due: string | null };
+    return r.due ? DateTime.fromISO(r.due, { zone: TZ }) : null;
+  }
+
   close(): void {
     this.db.close();
   }

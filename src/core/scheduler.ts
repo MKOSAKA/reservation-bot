@@ -72,6 +72,10 @@ export class Scheduler {
     void this.tick();
   }
 
+  isBusy(): boolean {
+    return this.busy.size > 0;
+  }
+
   stop(): void {
     if (this.timer) clearInterval(this.timer);
   }

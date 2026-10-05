@@ -38,6 +38,8 @@
 
 ### 作業前に必読の文書
 
+- [AWS 環境の構築・運用手順](docs/ops/aws-setup.md) — インフラ・デプロイ・秘密情報を触る前に必読
+
 - [2026-10-05 調査と設計](docs/records/2026-10-05_調査と設計.md) — 対象サイトの観測結果・規約確認・構成の判断根拠
 
 ## Repository-specific information
@@ -49,5 +51,5 @@
 - Test command: `npm test`
 - Lint command: `npm run typecheck`
 - Build command: `npm run build`
-- Deployment environment: 専用VPS/EC2 + systemd（`deploy/`）
+- Deployment environment: AWS EC2 t4g.small（通常停止・必要時のみ起動）+ systemd。手順は `docs/ops/aws-setup.md`
 - Prohibited operations: 上記「固有の禁止事項」
