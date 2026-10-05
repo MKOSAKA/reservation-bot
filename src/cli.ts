@@ -149,7 +149,7 @@ async function main() {
       return; // 常駐
     }
     default:
-      console.log("commands: validate | add | wake-at | next-jobs | status | run | preflight | daemon");
+      console.log("commands: validate | add | wake-at | session-check | next-jobs | status | run | preflight | daemon");
   }
   store.close();
 }
