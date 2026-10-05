@@ -8,7 +8,8 @@
   - 起動: 各リクエストの T-24h と T0 の60分前、T0 の30分前に再試行（起動済みなら無害）
   - 停止: デーモンが「75分以内に予定なし・実行中なし・起動から20分経過・keepalive なし」で自インスタンスを停止
 - SSH なし。接続は SSM Session Manager のみ。IMDSv2 必須（hop limit 1）。EBS 暗号化
-- 公開IPv4は自動割当（EIPを使わないので停止中は課金されない）
+- 専用VPC（10.80.0.0/16）とパブリックサブネット1つ。NATなし。会社の本番VPC（PPPark・Mamegra）とは経路を持たない
+- 公開IPv4は起動時に自動割当（EIPを使わないので停止中は課金されない）
 - 秘密情報: Secrets Manager `reservation-bot/app`（LaBOLA・セキュリティコード・Slack・暗号鍵）と
   `reservation-bot/deploy-github-token`（リポジトリ読み取り用 PAT）。起動ごとに `/etc/reservation-bot/secrets.env`(0640) へ展開
 - IAM: インスタンスロールは自分の秘密情報の読み取り、`reservation-bot` グループのスケジュール操作、
@@ -21,11 +22,11 @@
    ```bash
    AWS_REGION=ap-northeast-1 bash infra/scripts/put-secrets.sh
    ```
-3. スタック作成（VPC とパブリックサブネットを指定）
+3. スタック作成（専用VPC・サブネットもスタック内で作る。会社の本番VPCとは経路を持たない）
    ```bash
    aws cloudformation deploy --region ap-northeast-1 --stack-name reservation-bot \
      --template-file infra/cloudformation.yaml --capabilities CAPABILITY_NAMED_IAM \
-     --parameter-overrides VpcId=<vpc-id> SubnetId=<public-subnet-id>
+     --parameter-overrides CreateGitHubOidcProvider=true
    ```
 4. 初回起動で UserData → `bootstrap.sh` が実行される（10分程度）。Slack に「🟢 起動しました」が届けば完了
    - ログ: `/var/log/reservation-bot-userdata.log`、`journalctl -u reservation-bot`
