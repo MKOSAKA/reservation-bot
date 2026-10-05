@@ -78,6 +78,18 @@ export function isScheduleRequestFor(postData: string | null, date: string): boo
   return new RegExp(`"?start"?\\s*[=:]\\s*"?${date}`).test(body);
 }
 
+/**
+ * 画面上の日時表記（"2027/01/30 15:00" / "2027-01-30 15:00:00" など）が、候補の日時と分単位で一致するか。
+ * 表記の違いは許し、年月日時分の値は厳密に比べる
+ */
+export function sameMinute(text: string, dt: DateTime): boolean {
+  const m = /^\s*(\d{4})[-/年](\d{1,2})[-/月](\d{1,2})日?[ T]+(\d{1,2}):(\d{2})(?::00)?\s*$/.exec(text);
+  if (!m) return false;
+  const [, y, mo, d, h, mi] = m.map(Number) as number[];
+  const j = dt.setZone(TZ);
+  return y === j.year && mo === j.month && d === j.day && h === j.hour && mi === j.minute;
+}
+
 function facilityOf(key: string): StudiolFacility {
   const f = STUDIOL_FACILITIES[key];
   if (!f) throw new ProviderError("SITE_CHANGED", `unknown studiol facility "${key}"`);
@@ -367,8 +379,12 @@ export class StudiolAdapter implements ProviderAdapter {
     const form = page.locator('form[action$="/reserve_complete"]');
     if ((await form.count()) !== 1) throw new ProviderError("SITE_CHANGED", "reserve_complete form not found");
     const hidden = async (n: string) => form.locator(`input[name="${n}"]`).inputValue().catch(() => "");
-    if ((await hidden("room_id")) !== room.resourceId || (await hidden("date_time_start")) !== startStr || (await hidden("date_time_end")) !== endStr) {
-      throw new ProviderError("SITE_CHANGED", "confirmation does not match the candidate");
+    const got = { room: await hidden("room_id"), start: await hidden("date_time_start"), end: await hidden("date_time_end") };
+    if (got.room !== room.resourceId || !sameMinute(got.start, c.start) || !sameMinute(got.end, c.end)) {
+      throw new ProviderError(
+        "SITE_CHANGED",
+        `confirmation does not match the candidate: room=${got.room.slice(0, 10)} start=${got.start.slice(0, 25)} end=${got.end.slice(0, 25)} (expected ${room.resourceId} ${startStr}-${endStr})`,
+      );
     }
     const total = parseTotal(await this.bodyText(page));
     if (total === null) throw new ProviderError("SITE_CHANGED", "total price not found");
