@@ -80,6 +80,8 @@ export interface Slot {
 export interface AvailabilitySnapshot {
   fetchedAt: DateTime;
   slots: Slot[];
+  /** 調査用の要約（取得した生データの件数など。個人情報・認証情報を含めない） */
+  diagnostics?: string;
 }
 
 export type ErrorCategory =

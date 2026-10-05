@@ -67,6 +67,20 @@ export function parseDaySlots(facility: StudiolFacility, rooms: string[], events
   return slots;
 }
 
+/** 対象日のイベントの要約（調査用）: 部屋ごとに「className/rendering」別の件数と、最初の数件の開始時刻 */
+export function summarizeEvents(facility: StudiolFacility, events: RawEvent[]): string {
+  const label = new Map(Object.values(facility.rooms).map((r) => [r.resourceId, r.label]));
+  const groups = new Map<string, string[]>();
+  for (const e of events) {
+    const key = `${label.get(e.resourceId) ?? `rid${e.resourceId}`}[${e.classes.join(".") || "-"}/${e.rendering ?? "-"}]`;
+    groups.set(key, [...(groups.get(key) ?? []), e.start.slice(11, 16)]);
+  }
+  const parts = [...groups.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, ts]) => `${k}x${ts.length}(${ts.sort().slice(0, 4).join(",")}${ts.length > 4 ? ",…" : ""})`);
+  return `dayEvents=${events.length} ${parts.join(" ")}`;
+}
+
 export interface UserReservation {
   reservationNo: string;
   shopName: string;

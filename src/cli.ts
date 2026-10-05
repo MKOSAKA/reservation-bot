@@ -6,6 +6,7 @@
  *   status <id>                 リクエスト状態と試行履歴
  *   run <id> [--mode m]         即時実行（dry-run / assist / auto）
  *   preflight <id>              事前チェックのみ
+ *   availability <id>           空き状況の読み取りのみ（部屋ごとの空き開始時刻。予約操作はしない）
  *   daemon                      常駐スケジューラ（systemd から起動）
  */
 import { closeSync, existsSync, openSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
@@ -13,7 +14,7 @@ import { join } from "node:path";
 import { DateTime } from "luxon";
 import { buildApp } from "./app.js";
 import { describeResolved, resolveRequestFile } from "./config/resolve.js";
-import { Scheduler, formatNextJobs, planPhases } from "./core/scheduler.js";
+import { Scheduler, formatAvailability, formatNextJobs, planPhases } from "./core/scheduler.js";
 import { TZ, type Mode, type ReservationRequest } from "./core/types.js";
 import { deleteWakeSchedules, keepaliveExists, planWakeTimes, powerOff, registerWakeSchedules, shouldPowerOff, wakeConfigFromEnv } from "./infra/power.js";
 
@@ -118,6 +119,15 @@ async function main() {
       const outcome = await app.engineFor(providers.get(r.provider)!).run(r.id, mode);
       console.log(JSON.stringify(outcome, null, 2));
       await providers.get(r.provider)!.close();
+      break;
+    }
+    case "availability": {
+      const r = store.getRequest(target!);
+      if (!r) throw new Error("not found");
+      const p = providers.get(r.provider)!;
+      const snap = await p.getAvailability(r);
+      console.log(formatAvailability(snap));
+      await p.close();
       break;
     }
     case "preflight": {
