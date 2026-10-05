@@ -4,28 +4,13 @@
 
 ## 「予約取って」と頼まれたとき（スマホのClaudeアプリ等から）
 
-ユーザーは PC を使わずにチャットで依頼する。次の順で進める。
-
-1. **条件を解釈する**: 施設・日付・開始時刻の希望順・利用時間・コート/部屋・料金上限
-   - 対応施設とキーは `src/config/resolve.ts` の `CATALOG`
-   - LaBOLA `morinomiya`（`covered`/`open`）は、クラウドからの予約導線が 403 で拒否されるため自動予約不可（docs/records 参照）
-   - スタジオル `base-on-top-umeda`: 部屋 `1st`〜`8st`（2st/5st/8st は30分開始。:00 指定は自動で :30 へずれる）。
-     利用人数 `people` はバンドごとに違うので毎回確認する（既定 8）。ユーザーの定番は土日祝・1st > 8st > 7st・12〜18時の2時間
-     → `earliest_start: "12:00"`, `latest_end: "18:00"` を使う。解禁は「3か月後の月末まで」（日時は観測中）
-   - 対応していない施設は「未対応」と伝え、登録しない
-   - 森ノ宮の枠は :30 開始（日曜 9:30〜）。「13時から」のように枠に合わない時刻は、近い枠（12:30 / 13:30）を提案して確認する
-   - 料金上限の既定: 屋根付き土日祝 11,000円/h、平日 8,800円/h（18:30以降 11,000円/h）
-2. **解禁日時を計算して確認を取る**: `npx tsx src/cli.ts validate <file>` の出力（解禁日時・候補・警告）をそのまま見せ、
-   「この内容で登録してよいか」を聞く。mode は原則 `auto`（ただし実予約テスト合格前は `assist`。`docs/records` で状況を確認）
-3. **PR を作る**: ブランチ `ai/claude/request-<id>`、ファイル `config/requests/<id>.yaml`（id = ファイル名。例 `2026-12-20-morinomiya`）
-4. **ユーザーの「マージして」を待ってマージする**（`governance/AI_AGENT_POLICY.md`。包括的な「任せる」では代行しない）
-5. マージで GitHub Actions `register-requests` が動き、サーバ起動 → 登録 → Slack 通知。Actions の結果を確認して報告する
-   - 失敗時はログ（`get-command-invocation` の出力）を見て原因を伝える。サーバへの再実行は `workflow_dispatch` で行える
-
-取り消し・変更はまだ CLI のみ（サーバ上）。必要になったら機能追加を提案する。
+**`docs/ops/booking-runbook.md`（予約代行の手順書）を読み、その手順どおりに進める。**
+要点だけ: 対応はスタジオル梅田のみ（LaBOLA はクラウドから 403 のため手動案内）／人数は毎回聞く／
+予約受付の開始日時が過ぎた日は自動予約の対象外／PR はユーザーの「マージして」を待ってマージ／結果は Slack `#予約ボット`。
 
 ## リポジトリ構成の要点
 
 - core（Provider非依存）: `src/core/`。サイト固有のURL・DOMは `src/providers/<name>/` に閉じる
-- 確定ボタンは `LABOLA_ALLOW_SUBMIT=1`（サーバの `/etc/reservation-bot/config.env`）の時だけ押す
+- 確定ボタンは `STUDIOL_ALLOW_SUBMIT=1` / `LABOLA_ALLOW_SUBMIT=1`（サーバの `/etc/reservation-bot/config.env`）の時だけ押す。
+  2026-10-05 時点: スタジオル 1（ユーザー了承済み）、LaBOLA 0
 - インフラ手順: `docs/ops/aws-setup.md`
