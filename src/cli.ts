@@ -1,6 +1,7 @@
 /**
  * CLI
  *   add <request.yaml>          予約リクエストを登録し、フェーズ（T-24h/T-10m/T0）を計画する
+ *   cancel <id>                 リクエストを取り消し、起動予定を削除
  *   next-jobs                   今後のフェーズ一覧
  *   status <id>                 リクエスト状態と試行履歴
  *   run <id> [--mode m]         即時実行（dry-run / assist / auto）
@@ -14,7 +15,7 @@ import { buildApp } from "./app.js";
 import { describeResolved, resolveRequestFile } from "./config/resolve.js";
 import { Scheduler, formatNextJobs, planPhases } from "./core/scheduler.js";
 import { TZ, type Mode, type ReservationRequest } from "./core/types.js";
-import { keepaliveExists, planWakeTimes, powerOff, registerWakeSchedules, shouldPowerOff, wakeConfigFromEnv } from "./infra/power.js";
+import { deleteWakeSchedules, keepaliveExists, planWakeTimes, powerOff, registerWakeSchedules, shouldPowerOff, wakeConfigFromEnv } from "./infra/power.js";
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(name);
@@ -87,6 +88,16 @@ async function main() {
       const name = process.argv[4] ?? `rb-manual-${at.toFormat("yyyyMMdd-HHmm")}`;
       await registerWakeSchedules(wake, [{ name, at }], log);
       console.log(`wake ${at.toFormat("yyyy-MM-dd HH:mm")} ${name}`);
+      break;
+    }
+    case "cancel": {
+      // リクエストを取り消し、起動予定も削除する（実行中・完了済みは取り消さない）
+      if (!target) throw new Error("usage: cancel <request-id>");
+      const ok = store.transition(target, ["draft", "scheduled", "preflight_ok", "failed", "manual_intervention_required"], "cancelled");
+      console.log(ok ? `cancelled ${target}` : `not cancelled (status: ${store.getRequest(target)?.status ?? "not found"})`);
+      const wake = wakeConfigFromEnv(process.env);
+      if (ok && wake) console.log(`deleted schedules: ${(await deleteWakeSchedules(wake, target, log)).join(", ") || "なし"}`);
+      if (ok) await app.notifier.send("info", `🗑 予約リクエストを取り消しました: ${target}`);
       break;
     }
     case "next-jobs":
@@ -165,7 +176,7 @@ async function main() {
       return; // 常駐
     }
     default:
-      console.log("commands: validate | add | wake-at | session-check | next-jobs | status | run | preflight | daemon");
+      console.log("commands: validate | add | cancel | wake-at | session-check | next-jobs | status | run | preflight | daemon");
   }
   store.close();
 }

@@ -10,7 +10,7 @@
  */
 import { existsSync } from "node:fs";
 import { EC2Client, StopInstancesCommand } from "@aws-sdk/client-ec2";
-import { CreateScheduleCommand, ConflictException, SchedulerClient } from "@aws-sdk/client-scheduler";
+import { CreateScheduleCommand, ConflictException, DeleteScheduleCommand, ResourceNotFoundException, SchedulerClient } from "@aws-sdk/client-scheduler";
 import { DateTime } from "luxon";
 import type { Logger } from "pino";
 import { TZ } from "../core/types.js";
@@ -92,6 +92,24 @@ export async function registerWakeSchedules(cfg: WakeConfig, wakes: WakeTime[], 
       throw e;
     }
   }
+}
+
+/** リクエストの起動予定（rb-<id>-*）を削除する。存在しないものは無視 */
+export async function deleteWakeSchedules(cfg: WakeConfig, requestId: string, log: Logger): Promise<string[]> {
+  const client = new SchedulerClient({ region: process.env.AWS_REGION ?? "ap-northeast-1" });
+  const deleted: string[] = [];
+  for (const tag of ["pf24", "rel", "rel-retry"]) {
+    const name = `rb-${requestId}-${tag}`.slice(0, 64);
+    try {
+      await client.send(new DeleteScheduleCommand({ Name: name, GroupName: cfg.group }));
+      deleted.push(name);
+      log.info({ name }, "wake schedule deleted");
+    } catch (e) {
+      if (e instanceof ResourceNotFoundException) continue;
+      throw e;
+    }
+  }
+  return deleted;
 }
 
 export function keepaliveExists(dataDir: string): boolean {
