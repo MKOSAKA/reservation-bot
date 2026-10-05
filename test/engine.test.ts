@@ -273,3 +273,13 @@ describe("release timing", () => {
     expect(order.slice(0, 3)).toEqual(["existing", "wait-T0", "availability"]);
   });
 });
+
+describe("cancel", () => {
+  it("only scheduled-like requests can be cancelled, and cancelled ones are not executed", async () => {
+    expect(store.transition("req-1", ["draft", "scheduled", "preflight_ok", "failed", "manual_intervention_required"], "cancelled")).toBe(true);
+    const out = await engine.run("req-1");
+    expect(out.kind).toBe("already_done");
+    expect(provider.reserveCalls).toEqual([]);
+    expect(store.pendingPhases()).toEqual([]);
+  });
+});
