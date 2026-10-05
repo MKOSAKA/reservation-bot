@@ -90,3 +90,22 @@ describe("studiol candidates", () => {
     expect(policyFor(f.release).releaseAt("2027-02-13").toISO()).toBe("2026-11-01T00:00:00.000+09:00");
   });
 });
+
+describe("studiol login failure detail", () => {
+  it("keeps status, path and on-page messages while masking the credentials", async () => {
+    const { describeLoginFailure } = await import("../src/providers/studiol/adapter.js");
+    const s = describeLoginFailure(
+      200,
+      "https://studi-ol.com/shop/671?x=secret",
+      "ベースオントップ | スタジオル",
+      ["メールアドレス user@example.com またはパスワードが違います", "メールアドレス user@example.com またはパスワードが違います", "p@ss"],
+      { email: "user@example.com", password: "p@ss" },
+    );
+    expect(s).toContain("status=200");
+    expect(s).toContain("url=https://studi-ol.com/shop/671");
+    expect(s).not.toContain("secret");
+    expect(s).not.toContain("user@example.com");
+    expect(s).not.toContain("p@ss");
+    expect(s.match(/パスワードが違います/g)).toHaveLength(1);
+  });
+});

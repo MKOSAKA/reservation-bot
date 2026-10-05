@@ -39,6 +39,30 @@ import { checkResources, formatStudiolDateTime, parseDaySlots, parseTotal, parse
 const BASE = "https://studi-ol.com";
 const SLOT_TAKEN_RE = /既に予約|予約できません|予約が入って|空きがありません|選択できません|埋まって/;
 
+/**
+ * ログイン失敗の説明（ログ・通知に出してよい形）。
+ * 入力したメールアドレス・パスワードが画面の文言に含まれていても伏せる。
+ */
+export function describeLoginFailure(
+  status: number | null,
+  url: string,
+  title: string,
+  messages: string[],
+  cred: { email: string; password: string },
+): string {
+  const mask = (s: string) => [cred.email, cred.password].filter((v) => v.length > 0).reduce((t, v) => t.split(v).join("***"), s);
+  const uniq = [...new Set(messages.map(mask))].slice(0, 5).map((m) => m.slice(0, 120));
+  return [
+    "login rejected",
+    `status=${status ?? "none"}`,
+    `url=${mask(safeUrl(url) ?? "")}`,
+    title ? `title=${mask(title).slice(0, 80)}` : null,
+    uniq.length ? `messages=${JSON.stringify(uniq)}` : "messages=[]",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 function facilityOf(key: string): StudiolFacility {
   const f = STUDIOL_FACILITIES[key];
   if (!f) throw new ProviderError("SITE_CHANGED", `unknown studiol facility "${key}"`);
@@ -167,7 +191,7 @@ export class StudiolAdapter implements ProviderAdapter {
     const form = page.locator('form[action$="/login"]:has(input[type="password"])').first();
     if ((await form.count()) === 0) throw new ProviderError("SITE_CHANGED", "login form not found");
     // ログインフォームはヘッダーのドロップダウン内（非表示）にあるため、値を入れてフォーム自身の送信を使う
-    await Promise.all([
+    const [nav] = await Promise.all([
       page.waitForNavigation({ waitUntil: "domcontentloaded" }).catch(() => null),
       form.evaluate(
         (el, c) => {
@@ -184,7 +208,15 @@ export class StudiolAdapter implements ProviderAdapter {
     const body = (await page.locator("body").innerText()).slice(0, 5000);
     const err = categorizeResponse(null, body);
     if (err) throw err;
-    if (!(await this.loggedIn(page))) throw new ProviderError("SESSION_EXPIRED", "login rejected");
+    if (!(await this.loggedIn(page))) {
+      // 原因の切り分け用に、遷移先・HTTP ステータス・画面上のエラー文言だけを残す（入力値は伏せる）
+      const messages = await page
+        .locator(".help-block, .invalid-feedback, .alert, .error, .text-danger")
+        .evaluateAll((els) => els.map((e) => (e.textContent ?? "").replace(/\s+/g, " ").trim()).filter(Boolean))
+        .catch(() => [] as string[]);
+      const title = await page.title().catch(() => "");
+      throw new ProviderError("SESSION_EXPIRED", describeLoginFailure(nav?.status() ?? null, page.url(), title, messages, cred));
+    }
     await this.sessions.saveState();
   }
 
