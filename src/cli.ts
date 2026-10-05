@@ -117,6 +117,22 @@ async function main() {
       await p.close();
       break;
     }
+    case "session-check": {
+      // ログイン状態の確認。切れていれば1回だけログインする（ループしない）
+      const name = target ?? "labola";
+      const p = providers.get(name);
+      if (!p) throw new Error(`unknown provider ${name}`);
+      let s = await p.validateSession().catch((e) => ({ valid: false, detail: (e as Error).message }));
+      if (!s.valid) {
+        console.log(`session invalid (${s.detail}); logging in once`);
+        await p.authenticate().catch((e) => console.log(`login failed: ${(e as { category?: string }).category ?? ""} ${(e as Error).message}`));
+        s = await p.validateSession().catch((e) => ({ valid: false, detail: (e as Error).message }));
+      }
+      store.setSession(name, s.valid ? "valid" : "invalid", s.detail);
+      console.log(`session: ${s.valid ? "valid" : "INVALID"} (${s.detail})`);
+      await p.close();
+      break;
+    }
     case "daemon": {
       const release = acquireLock(join(app.dataDir, "daemon.pid"));
       const scheduler = new Scheduler({ store, providers, engineFor: app.engineFor, notifier: app.notifier, log });
@@ -149,7 +165,7 @@ async function main() {
       return; // 常駐
     }
     default:
-      console.log("commands: validate | add | wake-at | next-jobs | status | run | preflight | daemon");
+      console.log("commands: validate | add | wake-at | session-check | next-jobs | status | run | preflight | daemon");
   }
   store.close();
 }

@@ -56,6 +56,15 @@ sudo -u rbot -H bash -c 'cd /opt/reservation-bot && set -a && . /etc/reservation
 
 `add` が起動スケジュールを登録する。臨時起動は `node dist/src/cli.js wake-at 2026-10-11T23:30`。
 
+## サーバ上で CLI を実行する（SSM 経由）
+
+```bash
+aws ssm send-command --instance-ids <instance-id> --document-name AWS-RunShellScript \
+  --parameters 'commands=["bash /opt/reservation-bot/infra/scripts/cli.sh session-check"]'
+```
+
+`cli.sh` は rbot ユーザー・本番の環境変数で `dist/src/cli.js` を実行する。`keepalive` / `keepalive-off` / `status` も使える。
+
 ## 手作業中に停止させない
 
 `touch /var/lib/reservation-bot/keepalive`（作業後に削除）
