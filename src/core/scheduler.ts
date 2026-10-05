@@ -13,7 +13,7 @@ import { DateTime } from "luxon";
 import type { Logger } from "pino";
 import type { Notifier } from "./notification.js";
 import type { ReservationEngine } from "./reservation-engine.js";
-import { TZ, type ProviderAdapter } from "./types.js";
+import { TZ, type AvailabilitySnapshot, type ProviderAdapter, type Slot } from "./types.js";
 import type { Phase, Store } from "../storage/db.js";
 
 export const RELEASE_LEAD_MS = 15_000;
@@ -171,4 +171,18 @@ export function formatNextJobs(store: Store): string {
       return `${due}  ${p.phase.padEnd(14)} ${r.provider} / ${r.facility} / ${r.targetDate}  [${r.status}] [${st}]`;
     })
     .join("\n");
+}
+
+/** 空き状況の要約（CLI の availability 用）。部屋ごとに、状態別の30分枠の数と空いている開始時刻を並べる */
+export function formatAvailability(snap: AvailabilitySnapshot): string {
+  const bySpace = new Map<string, Slot[]>();
+  for (const s of snap.slots) bySpace.set(s.spaceKey, [...(bySpace.get(s.spaceKey) ?? []), s]);
+  const lines = [`取得: ${snap.fetchedAt.toFormat("yyyy-MM-dd HH:mm:ss")}`];
+  for (const [space, slots] of bySpace) {
+    const count = (st: Slot["state"]) => slots.filter((s) => s.state === st).length;
+    const free = slots.filter((s) => s.state === "available").map((s) => s.start.toFormat("HH:mm"));
+    lines.push(`${space}: 空き${count("available")} 予約済${count("booked")} 未解禁${count("not_released")} 不可${count("blocked")}  空き開始: ${free.join(" ") || "-"}`);
+  }
+  if (snap.diagnostics) lines.push(`診断: ${snap.diagnostics}`);
+  return lines.join("\n");
 }

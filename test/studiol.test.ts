@@ -122,3 +122,18 @@ describe("studiol schedule request matching", () => {
     expect(isScheduleRequestFor(null, "2027-01-30")).toBe(false);
   });
 });
+
+describe("studiol diagnostics", () => {
+  it("summarizes the day's events per room and kind", async () => {
+    const { summarizeEvents } = await import("../src/providers/studiol/parse.js");
+    const { formatAvailability } = await import("../src/core/scheduler.js");
+    const events = [ev("2027-01-31", "13:00", "2854"), ev("2027-01-31", "13:30", "2854"), { start: "2027-01-31T14:00:00", resourceId: "2861", classes: [], rendering: null }];
+    const s = summarizeEvents(f, events);
+    expect(s).toContain("dayEvents=3");
+    expect(s).toContain("1st[sche-pub/background]x2(13:00,13:30)");
+    expect(s).toContain("8st[-/-]x1(14:00)");
+    const out = formatAvailability({ fetchedAt: at("2026-10-05T16:00"), slots: parseDaySlots(f, ["1st"], events, "2027-01-31"), diagnostics: s });
+    expect(out).toContain("1st: 空き2");
+    expect(out).toContain("空き開始: 13:00 13:30");
+  });
+});

@@ -34,7 +34,7 @@ import {
 } from "../../core/types.js";
 import { categorizeResponse } from "../labola/adapter.js";
 import { STUDIOL_FACILITIES, type StudiolFacility } from "./facilities.js";
-import { checkResources, formatStudiolDateTime, parseDaySlots, parseTotal, parseUserReservation, type RawEvent, type RawResource } from "./parse.js";
+import { checkResources, formatStudiolDateTime, parseDaySlots, parseTotal, parseUserReservation, summarizeEvents, type RawEvent, type RawResource } from "./parse.js";
 
 const BASE = "https://studi-ol.com";
 const SLOT_TAKEN_RE = /既に予約|予約できません|予約が入って|空きがありません|選択できません|埋まって/;
@@ -132,7 +132,7 @@ export class StudiolAdapter implements ProviderAdapter {
   }
 
   /** カレンダーを対象日へ移動し、その日のイベントと部屋構成を読む */
-  private async readDay(page: Page, date: string): Promise<{ events: RawEvent[]; resources: RawResource[] }> {
+  private async readDay(page: Page, date: string): Promise<{ events: RawEvent[]; resources: RawResource[]; meta: string }> {
     // 店舗ページを開いた直後は「今日」の分の取得が走っているため、対象日の取得（POST 本文の start=対象日）だけを待つ。
     // 2026-10-05 AWS 実機: URL だけで待つと今日の分の応答で先に進み、対象日のイベント0件＝未解禁と誤判定した
     const [res] = await Promise.all([
@@ -165,7 +165,10 @@ export class StudiolAdapter implements ProviderAdapter {
       const $ = (window as unknown as { jQuery: (s: string) => { fullCalendar: (...a: unknown[]) => unknown } }).jQuery;
       const $c = $(".schedule-calendar0");
       const resources = ($c.fullCalendar("getResources") as { id: unknown; title: unknown }[]).map((r) => ({ id: String(r.id), title: String(r.title) }));
-      const events = ($c.fullCalendar("clientEvents") as Ev[])
+      const all = $c.fullCalendar("clientEvents") as Ev[];
+      const view = ($c.fullCalendar("getView") as { name?: string }).name ?? "?";
+      const shown = ($c.fullCalendar("getDate") as { format: (f: string) => string }).format("YYYY-MM-DD");
+      const events = all
         .filter((e) => e.start.format("YYYY-MM-DD") === d)
         .map((e) => ({
           start: e.start.format("YYYY-MM-DDTHH:mm:ss"),
@@ -173,7 +176,7 @@ export class StudiolAdapter implements ProviderAdapter {
           classes: ([] as string[]).concat(e.className ?? []),
           rendering: e.rendering ?? null,
         }));
-      return { events, resources };
+      return { events, resources, meta: `view=${view} shown=${shown} clientEvents=${all.length}` };
     }, date);
   }
 
@@ -181,10 +184,10 @@ export class StudiolAdapter implements ProviderAdapter {
     const f = facilityOf(req.facility);
     const page = await this.sessions.getPage();
     await this.openShop(page, f);
-    const { events, resources } = await this.readDay(page, req.targetDate);
+    const { events, resources, meta } = await this.readDay(page, req.targetDate);
     checkResources(f, resources);
     const slots = parseDaySlots(f, req.preferences.spacePriority, events, req.targetDate);
-    return { fetchedAt: DateTime.now().setZone(TZ), slots };
+    return { fetchedAt: DateTime.now().setZone(TZ), slots, diagnostics: `${meta} ${summarizeEvents(f, events)}` };
   }
 
   /** 30分開始の部屋では :00 開始の候補を :30 へずらす（逆も同様に次の開始可能時刻へ） */
