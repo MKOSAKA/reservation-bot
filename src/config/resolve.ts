@@ -8,6 +8,7 @@ import { loadRequestFile } from "./load.js";
 import { policyFor } from "../core/release-policy.js";
 import { TZ, type ReservationRequest } from "../core/types.js";
 import { LABOLA_FACILITIES } from "../providers/labola/facilities.js";
+import { STUDIOL_FACILITIES } from "../providers/studiol/facilities.js";
 
 interface ProviderCatalog {
   facilities: () => string[];
@@ -21,6 +22,11 @@ export const CATALOG: Record<string, ProviderCatalog> = {
     facilities: () => Object.keys(LABOLA_FACILITIES),
     spaces: (f) => (LABOLA_FACILITIES[f] ? Object.keys(LABOLA_FACILITIES[f]!.spaces) : null),
     defaultRelease: (f) => LABOLA_FACILITIES[f]?.release ?? null,
+  },
+  studiol: {
+    facilities: () => Object.keys(STUDIOL_FACILITIES),
+    spaces: (f) => (STUDIOL_FACILITIES[f] ? Object.keys(STUDIOL_FACILITIES[f]!.rooms) : null),
+    defaultRelease: (f) => STUDIOL_FACILITIES[f]?.release ?? null,
   },
 };
 

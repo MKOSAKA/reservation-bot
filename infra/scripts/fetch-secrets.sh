@@ -10,7 +10,7 @@ TMP=$(mktemp)
   | python3 -c '
 import json, sys
 d = json.load(sys.stdin)
-allowed = ["LABOLA_MEMBER_ID", "LABOLA_PASSWORD", "LABOLA_CARD_CVV", "STATE_ENCRYPTION_KEY", "SLACK_WEBHOOK_URL", "LINE_CHANNEL_ACCESS_TOKEN", "LINE_TO_USER_ID"]
+allowed = ["LABOLA_MEMBER_ID", "LABOLA_PASSWORD", "LABOLA_CARD_CVV", "STATE_ENCRYPTION_KEY", "SLACK_WEBHOOK_URL", "LINE_CHANNEL_ACCESS_TOKEN", "LINE_TO_USER_ID", "STUDIOL_EMAIL", "STUDIOL_PASSWORD"]
 for k in allowed:
     v = d.get(k)
     if v is None: continue

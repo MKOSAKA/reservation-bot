@@ -7,6 +7,7 @@ import { ReservationEngine } from "./core/reservation-engine.js";
 import { SessionManager } from "./core/session-manager.js";
 import type { ProviderAdapter } from "./core/types.js";
 import { LabolaAdapter } from "./providers/labola/adapter.js";
+import { StudiolAdapter } from "./providers/studiol/adapter.js";
 import { Store } from "./storage/db.js";
 
 export function buildApp(env: NodeJS.ProcessEnv = process.env) {
@@ -23,6 +24,13 @@ export function buildApp(env: NodeJS.ProcessEnv = process.env) {
     "labola",
     new LabolaAdapter(new SessionManager("labola", stateDir), evidenceDir, () =>
       env.LABOLA_MEMBER_ID && env.LABOLA_PASSWORD ? { memberId: env.LABOLA_MEMBER_ID, password: env.LABOLA_PASSWORD } : null,
+    ),
+  );
+
+  providers.set(
+    "studiol",
+    new StudiolAdapter(new SessionManager("studiol", stateDir), evidenceDir, () =>
+      env.STUDIOL_EMAIL && env.STUDIOL_PASSWORD ? { email: env.STUDIOL_EMAIL, password: env.STUDIOL_PASSWORD } : null,
     ),
   );
 
