@@ -1,0 +1,29 @@
+# Milestone 1: 森ノ宮 屋根付き（Southコート）2026-12-13(日) 2時間
+id: 2026-12-13-morinomiya
+provider: labola
+facility: morinomiya
+date: 2026-12-13
+duration_minutes: 120
+
+court_priority:
+  - covered # Southコート（屋根有）space_id=661
+
+time_priority:
+  - "13:30"
+  - "12:30"
+  - "11:30"
+  - "14:30"
+time_first: true
+
+# 屋根付きは土日祝 11,000円/h → 2時間 22,000円（税込）
+max_price: 22000
+
+# 省略時は施設定義の既定（60日前 0:00）。解禁ルール確定後に明示する
+release:
+  type: days_before
+  days: 60
+  time: "00:00"
+  timezone: Asia/Tokyo
+
+# 本番前は dry-run → assist で確認してから auto へ切り替える
+mode: dry-run

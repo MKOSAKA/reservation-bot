@@ -1,0 +1,63 @@
+{
+  "_source": "2026-10-05 10:20 JST に https://yoyaku.labola.jp/r/shop/3036/calendar_week/2026/11/30/?space_id=661 を表示し、DOM から抽出した値（11/30・12/05・12/06 の行）。12/05・12/06 は未解禁。",
+  "gridStart": "09:00",
+  "minutesPerColumn": 5,
+  "rows": [
+    {
+      "dayLabel": "11/30(月)",
+      "court": "Southコート（屋根有）",
+      "cells": [
+        { "classes": ["slot", "ex_btn", "not_allowed", "excess"], "colspan": 18, "link": null, "text": "" },
+        { "classes": ["slot", "ex_btn", "link", "empty", "join", "not_full", "no"], "colspan": 12, "link": "https://yoyaku.labola.jp/r/booking/rental/shop/3036/facility/661/20261130-1030-1130/customer-type/", "text": "〇" },
+        { "classes": ["slot", "ex_btn", "link", "empty", "join", "not_full", "no"], "colspan": 12, "link": "https://yoyaku.labola.jp/r/booking/rental/shop/3036/facility/661/20261130-1130-1230/customer-type/", "text": "〇" },
+        { "classes": ["slot", "ex_btn", "link", "empty", "join", "not_full", "no"], "colspan": 12, "link": "https://yoyaku.labola.jp/r/booking/rental/shop/3036/facility/661/20261130-1230-1330/customer-type/", "text": "〇" },
+        { "classes": ["slot", "ex_btn", "link", "empty", "join", "not_full", "no"], "colspan": 12, "link": "https://yoyaku.labola.jp/r/booking/rental/shop/3036/facility/661/20261130-1330-1430/customer-type/", "text": "〇" },
+        { "classes": ["slot", "ex_btn", "link", "empty", "join", "not_full", "no"], "colspan": 12, "link": "https://yoyaku.labola.jp/r/booking/rental/shop/3036/facility/661/20261130-1430-1530/customer-type/", "text": "〇" },
+        { "classes": ["slot", "ex_btn", "link", "empty", "join", "not_full", "no"], "colspan": 12, "link": "https://yoyaku.labola.jp/r/booking/rental/shop/3036/facility/661/20261130-1530-1630/customer-type/", "text": "〇" },
+        { "classes": ["slot", "ex_btn", "not_allowed", "facility_usage", "disabled", "white"], "colspan": 36, "link": null, "text": "クーバー" },
+        { "classes": ["slot", "ex_btn", "link", "empty", "join", "not_full", "no"], "colspan": 12, "link": "https://yoyaku.labola.jp/r/booking/rental/shop/3036/facility/661/20261130-1930-2030/customer-type/", "text": "〇" },
+        { "classes": ["slot", "ex_btn", "link", "empty", "join", "not_full", "no"], "colspan": 12, "link": "https://yoyaku.labola.jp/r/booking/rental/shop/3036/facility/661/20261130-2030-2130/customer-type/", "text": "〇" },
+        { "classes": ["slot", "ex_btn", "not_allowed", "rental_booking", "member468", "white"], "colspan": 12, "link": null, "text": "ハムストリングス" },
+        { "classes": ["slot", "ex_btn", "not_allowed", "excess"], "colspan": 6, "link": null, "text": "" }
+      ]
+    },
+    {
+      "dayLabel": "12/05(土)",
+      "court": "Southコート（屋根有）",
+      "cells": [
+        { "classes": ["slot", "ex_btn", "not_allowed", "excess"], "colspan": 6, "link": null, "text": "" },
+        { "classes": ["slot", "ex_btn", "not_allowed", "white"], "colspan": 12, "link": null, "text": "-" },
+        { "classes": ["slot", "ex_btn", "not_allowed", "white"], "colspan": 12, "link": null, "text": "-" },
+        { "classes": ["slot", "ex_btn", "not_allowed", "white"], "colspan": 12, "link": null, "text": "-" },
+        { "classes": ["slot", "ex_btn", "not_allowed", "white"], "colspan": 12, "link": null, "text": "-" },
+        { "classes": ["slot", "ex_btn", "not_allowed", "white"], "colspan": 12, "link": null, "text": "-" },
+        { "classes": ["slot", "ex_btn", "not_allowed", "white"], "colspan": 12, "link": null, "text": "-" },
+        { "classes": ["slot", "ex_btn", "not_allowed", "white"], "colspan": 12, "link": null, "text": "-" },
+        { "classes": ["slot", "ex_btn", "not_allowed", "white"], "colspan": 12, "link": null, "text": "-" },
+        { "classes": ["slot", "ex_btn", "not_allowed", "facility_usage", "disabled", "white"], "colspan": 24, "link": null, "text": "クーバー" },
+        { "classes": ["slot", "ex_btn", "not_allowed", "white"], "colspan": 12, "link": null, "text": "-" },
+        { "classes": ["slot", "ex_btn", "not_allowed", "white"], "colspan": 12, "link": null, "text": "-" },
+        { "classes": ["slot", "ex_btn", "not_allowed", "excess"], "colspan": 18, "link": null, "text": "" }
+      ]
+    },
+    {
+      "dayLabel": "12/06(日)",
+      "court": "Southコート（屋根有）",
+      "cells": [
+        { "classes": ["slot", "ex_btn", "not_allowed", "excess"], "colspan": 6, "link": null, "text": "" },
+        { "classes": ["slot", "ex_btn", "not_allowed", "white"], "colspan": 12, "link": null, "text": "-" },
+        { "classes": ["slot", "ex_btn", "not_allowed", "white"], "colspan": 12, "link": null, "text": "-" },
+        { "classes": ["slot", "ex_btn", "not_allowed", "white"], "colspan": 12, "link": null, "text": "-" },
+        { "classes": ["slot", "ex_btn", "not_allowed", "white"], "colspan": 12, "link": null, "text": "-" },
+        { "classes": ["slot", "ex_btn", "not_allowed", "white"], "colspan": 12, "link": null, "text": "-" },
+        { "classes": ["slot", "ex_btn", "not_allowed", "white"], "colspan": 12, "link": null, "text": "-" },
+        { "classes": ["slot", "ex_btn", "not_allowed", "white"], "colspan": 12, "link": null, "text": "-" },
+        { "classes": ["slot", "ex_btn", "not_allowed", "white"], "colspan": 12, "link": null, "text": "-" },
+        { "classes": ["slot", "ex_btn", "not_allowed", "white"], "colspan": 12, "link": null, "text": "-" },
+        { "classes": ["slot", "ex_btn", "not_allowed", "white"], "colspan": 12, "link": null, "text": "-" },
+        { "classes": ["slot", "ex_btn", "not_allowed", "white"], "colspan": 12, "link": null, "text": "-" },
+        { "classes": ["slot", "ex_btn", "not_allowed", "excess"], "colspan": 30, "link": null, "text": "" }
+      ]
+    }
+  ]
+}
