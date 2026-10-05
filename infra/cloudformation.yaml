@@ -4,11 +4,16 @@ Description: >-
   SSH は開けず SSM Session Manager のみ。秘密情報は Secrets Manager（reservation-bot/*）。
 
 Parameters:
-  VpcId:
-    Type: AWS::EC2::VPC::Id
-  SubnetId:
-    Type: AWS::EC2::Subnet::Id
-    Description: パブリックサブネット（外向き通信に公開IPv4を自動割当する。EIPは使わない＝停止中は課金されない）
+  VpcCidr:
+    Type: String
+    Default: 10.80.0.0/16
+    Description: 専用VPC。既存（PPPark 172.30.0.0/16・Mamegra 10.0.0.0/16）と重ならない範囲
+  SubnetCidr:
+    Type: String
+    Default: 10.80.1.0/24
+  AvailabilityZone:
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: ap-northeast-1a
   InstanceType:
     Type: String
     Default: t4g.small
@@ -33,11 +38,60 @@ Conditions:
   CreateOidc: !Equals [!Ref CreateGitHubOidcProvider, "true"]
 
 Resources:
+  # --- 専用ネットワーク（会社の本番VPCとは経路を持たない。VPC・IGW・サブネットは無料、NATは使わない）
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags: [{ Key: Name, Value: reservation-bot }, { Key: Project, Value: reservation-bot }]
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags: [{ Key: Name, Value: reservation-bot }, { Key: Project, Value: reservation-bot }]
+
+  GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !Ref SubnetCidr
+      AvailabilityZone: !Ref AvailabilityZone
+      MapPublicIpOnLaunch: false
+      Tags: [{ Key: Name, Value: reservation-bot-public }, { Key: Project, Value: reservation-bot }]
+
+  RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags: [{ Key: Name, Value: reservation-bot }, { Key: Project, Value: reservation-bot }]
+
+  DefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayAttachment
+    Properties:
+      RouteTableId: !Ref RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  SubnetRouteTable:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref RouteTable
+
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: reservation-bot (no inbound)
-      VpcId: !Ref VpcId
+      VpcId: !Ref Vpc
       SecurityGroupEgress:
         - IpProtocol: "-1"
           CidrIp: 0.0.0.0/0
@@ -130,6 +184,7 @@ Resources:
 
   Instance:
     Type: AWS::EC2::Instance
+    DependsOn: [DefaultRoute, SubnetRouteTable]
     Properties:
       ImageId: !Ref AmiId
       InstanceType: !Ref InstanceType
@@ -139,7 +194,7 @@ Resources:
         Version: !GetAtt LaunchTemplate.LatestVersionNumber
       NetworkInterfaces:
         - DeviceIndex: "0"
-          SubnetId: !Ref SubnetId
+          SubnetId: !Ref PublicSubnet
           AssociatePublicIpAddress: true
           GroupSet: [!Ref SecurityGroup]
       Tags:
@@ -205,6 +260,8 @@ Resources:
                   - !Sub arn:aws:ssm:${AWS::Region}::document/AWS-RunShellScript
 
 Outputs:
+  VpcId:
+    Value: !Ref Vpc
   GitHubActionsRoleArn:
     Value: !GetAtt GitHubActionsRole.Arn
   InstanceId:
