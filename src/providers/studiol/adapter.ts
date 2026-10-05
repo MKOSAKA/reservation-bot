@@ -298,6 +298,8 @@ export class StudiolAdapter implements ProviderAdapter {
   private async clickAndWait(page: Page, text: string): Promise<void> {
     const btn = page.locator(`button:has-text("${text}"), input[type="submit"][value="${text}"], a:has-text("${text}")`).first();
     if ((await btn.count()) === 0) throw new ProviderError("SITE_CHANGED", `button "${text}" not found`);
+    // 押せないボタンを通信エラー扱いで再試行しない（入力条件の変化はサイト変更として止める）
+    if (await btn.isDisabled().catch(() => false)) throw new ProviderError("SITE_CHANGED", `button "${text}" is disabled`);
     try {
       await Promise.all([page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 30_000 }), btn.click()]);
     } catch (e) {
@@ -349,6 +351,14 @@ export class StudiolAdapter implements ProviderAdapter {
       else if ((await page.locator(`input[type="radio"][name="${name}"]:checked`).count()) === 0) {
         throw new ProviderError("SITE_CHANGED", `unanswered questionnaire ${name}`);
       }
+    }
+    // 「注意事項 と 利用規約 に同意します。」にチェックしないと「予約の確認に進む」が押せない（2026-10-05 AWS 実機で確認）。
+    // 同意はユーザー本人の了承のもとで行う（docs/records 2026-10-05）。文言が変わっていたら同意せず止める
+    const agree = page.locator("#check-attention");
+    if ((await agree.count()) === 1) {
+      const label = (await agree.locator("xpath=..").innerText().catch(() => "")).replace(/\s+/g, "");
+      if (!/注意事項.*利用規約.*同意/.test(label)) throw new ProviderError("SITE_CHANGED", `unexpected agreement text "${label.slice(0, 60)}"`);
+      await agree.check();
     }
     await this.clickAndWait(page, "予約の確認に進む");
 
