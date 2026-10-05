@@ -1,0 +1,26 @@
+# /etc/systemd/system/reservation-bot.service
+# 常駐スケジューラ。cron では起動遅延・準備時間が確保できないため、常駐プロセスが T-24h/T-10m/T0 を管理する。
+[Unit]
+Description=reservation-bot scheduler daemon
+After=network-online.target chronyd.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=rbot
+Group=rbot
+WorkingDirectory=/opt/reservation-bot
+EnvironmentFile=/etc/reservation-bot/env
+ExecStart=/usr/bin/node dist/src/cli.js daemon
+Restart=always
+RestartSec=5
+# 秘密情報と実行データの保護
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/reservation-bot
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

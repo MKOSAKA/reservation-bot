@@ -1,0 +1,15 @@
+# 認証情報・セッション・実行データ（絶対にcommitしない）
+.env
+.env.*
+!.env.example
+data/
+*.state.json
+*.state.enc.json
+
+# AIが生成した下書き・探索的出力のスクラッチ領域
+# 恒久的に参照させたい内容は docs/ 配下へ「昇格」させること
+AI-Outputs/
+
+node_modules/
+dist/
+.DS_Store
